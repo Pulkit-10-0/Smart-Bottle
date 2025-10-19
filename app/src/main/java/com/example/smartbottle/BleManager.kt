@@ -1,9 +1,13 @@
 package com.example.smartbottle
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.*
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
@@ -21,9 +25,34 @@ import com.example.smartbottle.util.DateTimeUtils
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-
-
 class BleManager(private val context: Context) {
+
+    // Auto-reconnect state
+    private var reconnectAttempts = 0
+    private val maxReconnects = 6
+    private var lastConnectedDevice: BluetoothDevice? = null
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                if (state == BluetoothAdapter.STATE_ON) {
+                    // Bluetooth has just turned ON, run auto-reconnect
+                    Log.d(TAG, "Bluetooth turned ON, try auto-reconnect!")
+                    triggerAutoReconnect()
+                }
+            }
+        }
+    }
+
+    init {
+        val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        context.registerReceiver(bluetoothStateReceiver, filter)
+    }
+
+    fun cleanupReceivers() {
+        context.unregisterReceiver(bluetoothStateReceiver)
+    }
+
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -45,10 +74,7 @@ class BleManager(private val context: Context) {
     // UUIDs matching ESP32 code
     private val SERVICE_UUID = UUID.fromString("12345678-1234-1234-1234-123456789abc")
     private val CHARACTERISTIC_UUID = UUID.fromString("abcd1234-5678-1234-5678-123456789abc")
-
     private val TIME_SYNC_UUID = UUID.fromString("11223344-5566-7788-99aa-bbccddeeff00")
-
-
 
     private val _connectionState = MutableStateFlow<BleConnectionState>(BleConnectionState.Disconnected)
     val connectionState: StateFlow<BleConnectionState> = _connectionState.asStateFlow()
@@ -66,6 +92,7 @@ class BleManager(private val context: Context) {
 
     // BLE scan callback
     private val scanCallback = object : ScanCallback() {
+        @SuppressLint("MissingPermission")
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             if (!hasRequiredPermissions()) return
@@ -77,6 +104,16 @@ class BleManager(private val context: Context) {
                 updatedList.add(device)
                 _foundDevices.value = updatedList
                 Log.d(TAG, "Found device: ${device.name} (${device.address})")
+            }
+
+            // If auto-reconnect triggered, attempt connect if matches last known address
+            lastConnectedDevice?.let {
+                if (device.address == it.address && _connectionState.value == BleConnectionState.Scanning) {
+                    stopScan()
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        connectToDevice(device)
+                    }, 500) // let scan clear up before connecting
+                }
             }
         }
 
@@ -94,6 +131,8 @@ class BleManager(private val context: Context) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     Log.d(TAG, "Connected to GATT server.")
+                    reconnectAttempts = 0
+                    lastConnectedDevice = gatt.device
                     _connectionState.value = BleConnectionState.Connected
 
                     gatt.requestMtu(512)
@@ -102,6 +141,7 @@ class BleManager(private val context: Context) {
                     Log.d(TAG, "Disconnected from GATT server.")
                     _connectionState.value = BleConnectionState.Disconnected
                     cleanup()
+                    triggerAutoReconnect()
                 }
             }
         }
@@ -143,16 +183,15 @@ class BleManager(private val context: Context) {
                 Log.e(TAG, "Service discovery failed with status $status.")
             }
         }
+
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         private fun syncTimeToDevice(gatt: BluetoothGatt) {
             val service = gatt.getService(SERVICE_UUID)
             if (service != null) {
                 val timeCharacteristic = service.getCharacteristic(TIME_SYNC_UUID)
                 if (timeCharacteristic != null) {
-
                     val currentTimeSeconds = System.currentTimeMillis() / 1000
                     val timeBytes = currentTimeSeconds.toString().toByteArray(Charsets.UTF_8)
-
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         gatt.writeCharacteristic(timeCharacteristic, timeBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
                     } else {
@@ -183,7 +222,6 @@ class BleManager(private val context: Context) {
                         gatt.writeDescriptor(descriptor)
                     }
                     Log.d(TAG, "Notifications successfully enabled.")
-
 
                     Handler(Looper.getMainLooper()).postDelayed({
                         syncTimeToDevice(gatt)
@@ -238,8 +276,8 @@ class BleManager(private val context: Context) {
                     val temperature = jsonObject.getDouble("t")
                     val timestampStr = jsonObject.getString("ts")
 
-                    val epochSeconds = com.example.smartbottle.util.DateTimeUtils.parseToEpochSeconds(timestampStr)
-                    val formattedTimestamp = com.example.smartbottle.util.DateTimeUtils.epochToDisplay(epochSeconds)
+                    val epochSeconds = DateTimeUtils.parseToEpochSeconds(timestampStr)
+                    val formattedTimestamp = DateTimeUtils.epochToDisplay(epochSeconds)
 
                     val reading = TemperatureReading(temperature, epochSeconds, formattedTimestamp)
                     _currentReading.value = reading
@@ -301,6 +339,8 @@ class BleManager(private val context: Context) {
     }
 
     fun connectToDevice(device: BluetoothDevice) {
+        lastConnectedDevice = device
+        saveLastConnectedDeviceAddress(device.address)  // Save persistently
         try {
             bluetoothGatt = device.connectGatt(context, false, gattCallback)
             Log.d(TAG, "Connecting to ${device.name ?: "Unknown"} (${device.address})...")
@@ -308,6 +348,22 @@ class BleManager(private val context: Context) {
             Log.e(TAG, "Connect permission issue", e)
         }
     }
+
+    fun restoreLastConnectedDevice(): BluetoothDevice? {
+        val prefs = context.getSharedPreferences("smartbottle_prefs", Context.MODE_PRIVATE)
+        val address = prefs.getString("last_connected_device", null) ?: return null
+
+        val adapter = bluetoothAdapter ?: return null
+        return adapter.getRemoteDevice(address)
+    }
+
+    private fun saveLastConnectedDeviceAddress(address: String) {
+        val prefs = context.getSharedPreferences("smartbottle_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("last_connected_device", address).apply()
+    }
+
+
+
 
     fun disconnect() {
         try {
@@ -319,6 +375,7 @@ class BleManager(private val context: Context) {
         } catch (e: SecurityException) {
             Log.e(TAG, "Error disconnecting", e)
         }
+        reconnectAttempts = 0
     }
 
     private fun cleanup() {
@@ -337,6 +394,21 @@ class BleManager(private val context: Context) {
                     ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         } else {
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun triggerAutoReconnect() {
+        val last = lastConnectedDevice
+        if (last != null && reconnectAttempts < maxReconnects) {
+            reconnectAttempts++
+            Log.d(TAG, "Trying auto-reconnect (attempt $reconnectAttempts of $maxReconnects)...")
+            Handler(Looper.getMainLooper()).postDelayed({
+                // Start a scan to find our device; scanCallback auto-connects on match
+                safeStartScan()
+            }, 2000L * reconnectAttempts) // backoff delay
+        } else if (reconnectAttempts >= maxReconnects) {
+            Log.e(TAG, "Auto-reconnect failed after $maxReconnects attempts.")
         }
     }
 
