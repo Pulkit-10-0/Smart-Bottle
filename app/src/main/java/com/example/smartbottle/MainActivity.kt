@@ -31,9 +31,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smartbottle.ui.theme.SmartBottleTheme
 
 class MainActivity : ComponentActivity() {
+    private lateinit var bleManager: BleManager
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bleManager = BleManager(this)
         setContent {
             SmartBottleTheme {
                 Scaffold(
@@ -48,18 +50,24 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 ) { padding ->
-                    AppContent(Modifier.padding(padding))
+                    AppContent(bleManager = bleManager, modifier = Modifier.padding(padding))
                 }
             }
         }
     }
+    override fun onDestroy() {
+        super.onDestroy()
+        bleManager.cleanupReceivers()
+    }
+
 }
+
+
 
 @SuppressLint("MissingPermission")
 @Composable
-fun AppContent(modifier: Modifier = Modifier) {
+fun AppContent(bleManager: BleManager, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val bleManager = remember { BleManager(context) }
     val viewModel: TemperatureViewModel = viewModel { TemperatureViewModel(bleManager) }
 
     val connectionState    by viewModel.connectionState.collectAsState()
@@ -68,9 +76,20 @@ fun AppContent(modifier: Modifier = Modifier) {
     val foundDevices       by viewModel.foundDevices.collectAsState()
 
     var hasPermissions by remember { mutableStateOf(PermissionUtils.hasAllPermissions(context)) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { perms -> hasPermissions = perms.all { it.value } }
+
+    // Auto reconnect on app start if possible
+    LaunchedEffect(hasPermissions) {
+        if (hasPermissions && connectionState is BleConnectionState.Disconnected) {
+            val deviceToReconnect = bleManager.restoreLastConnectedDevice()
+            if (deviceToReconnect != null) {
+                bleManager.connectToDevice(deviceToReconnect)
+            }
+        }
+    }
 
     Column(
         modifier = modifier
