@@ -31,17 +31,17 @@ The Android application provides a comprehensive user interface featuring:
 ### Application Screenshots
 
 #### Main Interface and Real-time Monitoring
-![Application Main Interface](Pictures/2.jpeg)
+![Application Main Interface](Pictures/4.jpeg)
 
 The primary application interface displays real-time sensor data in an organized grid layout with Material Design 3 styling.
 
 #### Device Connection and Management
-![Device Connection Interface](Pictures/3.jpeg)
+![Device Connection Interface](Pictures/2.jpeg)
 
 Bluetooth device discovery and connection management interface with visual connection status indicators.
 
 #### Historical Data Visualization
-![Historical Data Display](Pictures/4.jpeg)
+![Historical Data Display](Pictures/3.jpeg)
 
 Chronological presentation of historical sensor readings with formatted timestamps and parameter trending.
 
