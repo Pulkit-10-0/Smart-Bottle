@@ -123,14 +123,20 @@ void setup() {
 
 // main loop
 void loop() {
-  float temp = random(200, 400) / 10.0; 
+  float temp = random(200, 400) / 10.0;
+  int uvCycle = random(0, 2); // Example: 0 = off, 1 = on
+  float battery = random(370, 420) / 100.0; // Example: 3.7V to 4.2V
+  float flow = random(0, 100) / 10.0; // Example: 0.0 to 10.0 L/min
 
   char ts[25];
   formatTimestamp(ts, sizeof(ts));
 
   if (deviceConnected) {
-    StaticJsonDocument<128> doc;
+    StaticJsonDocument<256> doc;
     doc["t"] = temp;
+    doc["uv"] = uvCycle;
+    doc["bat"] = battery;
+    doc["flow"] = flow;
     doc["ts"] = ts;
 
     String jsonStr;
@@ -143,20 +149,32 @@ void loop() {
     Serial.println("Sent: " + jsonStr);
   }
 
-  // OLED DISPLAY 
+  // OLED DISPLAY
   display.clearDisplay();
-  display.setTextSize(1.5);
+  display.setTextSize(1);
   display.setCursor(0,0);
   display.print("Temp: ");
   display.print(temp);
   display.println(" C");
 
-  display.setCursor(0, 16);
-  display.println("Time:");
-  display.setCursor(0, 28);
-  display.println(ts);
+  display.setCursor(0, 12);
+  display.print("UV: ");
+  display.println(uvCycle ? "ON" : "OFF");
+
+  display.setCursor(0, 24);
+  display.print("Bat: ");
+  display.print(battery);
+  display.println(" V");
+
+  display.setCursor(0, 36);
+  display.print("Flow: ");
+  display.print(flow);
+  display.println(" L/m");
 
   display.setCursor(0, 48);
+  display.println(ts);
+
+  display.setCursor(0, 56);
   if (deviceConnected) display.println("BLE: Connected");
   else display.println("BLE: Waiting...");
 
