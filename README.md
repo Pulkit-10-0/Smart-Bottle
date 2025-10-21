@@ -45,6 +45,24 @@ Bluetooth device discovery and connection management interface with visual conne
 
 Chronological presentation of historical sensor readings with formatted timestamps and parameter trending.
 
+
+
+## Video Demonstrations
+
+### Case 1: ESP32 Paired to Mobile Device with Live Data Reading  
+[Watch Demo](https://youtu.be/PDhdV3IJK7M)
+
+### Case 2: Mobile Device Restarted While ESP32 Remains On  
+[Watch Demo](https://www.youtube.com/watch?v=9OMV0pO7yD8)
+
+### Case 3: ESP32 Powered Off and On After Pairing  
+[Watch Demo](https://youtu.be/gn0D3X-ZWT0)
+
+### Case 4: Both ESP32 and Mobile Device Powered Off Then On  
+[Watch Demo](https://youtu.be/KK5QiKVi608)
+
+
+
 ## Hardware Requirements and Specifications
 
 ### Primary Microcontroller Unit
