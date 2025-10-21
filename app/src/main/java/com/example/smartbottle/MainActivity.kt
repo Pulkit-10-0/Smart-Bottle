@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.os.Build
 import android.os.Bundle
 import android.bluetooth.BluetoothDevice
+import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -322,7 +323,7 @@ fun CurrentTemperatureCard(currentReading: TemperatureReading?) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Current Temperature",
+                text = "Current Readings",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -335,7 +336,19 @@ fun CurrentTemperatureCard(currentReading: TemperatureReading?) {
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = "${currentReading.formattedTimestamp}",
+                    text = "UV: ${if (currentReading.uvCycle == 1) "ON" else "OFF"}",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    text = "Battery: ${currentReading.battery} V",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    text = "Flow: ${currentReading.flow} L/m",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    text = currentReading.formattedTimestamp,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
@@ -355,7 +368,6 @@ fun CurrentTemperatureCard(currentReading: TemperatureReading?) {
         }
     }
 }
-
 @Composable
 fun TemperatureReadingsList(readings: List<TemperatureReading>) {
     Column(
@@ -422,28 +434,37 @@ fun TemperatureReadingsList(readings: List<TemperatureReading>) {
 
 @Composable
 fun TemperatureReadingItem(reading: TemperatureReading) {
-    Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = "Temp:", fontSize = 24.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Temp: ",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Text(
                     text = "${reading.temperature}°C",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 20.sp,        // Larger temp
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
+            // TIMESTAMP below, dimmed
             Text(
-                text = reading.formattedTimestamp,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
+                reading.formattedTimestamp, // Use formatted version
+                fontSize = 14.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 8.dp)
             )
+            Text(text = "UV: ${if (reading.uvCycle == 1) "ON" else "OFF"}")
+            Text(text = "Battery: ${reading.battery} V")
+            Text(text = "Flow: ${reading.flow} L/m")
         }
     }
 }
@@ -500,3 +521,89 @@ fun PreviewConnectionControlPanelConnected() {
         )
     }
 }
+
+
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewCurrentTemperatureCardWithData() {
+    SmartBottleTheme {
+        CurrentTemperatureCard(
+            currentReading = TemperatureReading(
+                temperature = 27.5,
+                uvCycle = 1,
+                battery = 3.92,
+                flow = 2.3,
+                timestampEpoch = 1700000000L,
+                formattedTimestamp = "2025-10-20 17:30:00"
+            )
+        )
+    }
+}
+
+
+
+@Preview(
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+    name = "Dark Mode"
+)
+@Composable
+fun PreviewTemperatureReadingItem() {
+    SmartBottleTheme {
+        TemperatureReadingItem(
+            reading = TemperatureReading(
+                temperature = 25.8,
+                uvCycle = 0,
+                battery = 3.85,
+                flow = 1.7,
+                timestampEpoch = 1700000000L,
+                formattedTimestamp = "2025-10-20 17:25:00"
+            )
+        )
+    }
+}
+
+@Preview(
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+    name = "Dark Mode"
+)
+@Composable
+fun PreviewTemperatureReadingsListWithData() {
+    SmartBottleTheme {
+        TemperatureReadingsList(
+            readings = listOf(
+                TemperatureReading(27.5, 1, 3.92, 2.3, 1700000000L, "2025-10-20 17:30:00"),
+                TemperatureReading(25.8, 0, 3.85, 1.7, 1700000000L, "2025-10-20 17:25:00"),
+                TemperatureReading(28.1, 1, 3.95, 2.0, 1700000000L, "2025-10-20 17:20:00")
+            )
+        )
+    }
+}
+
+
+
+@Preview(
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+    name = "Dark Mode"
+)
+@Composable
+fun PreviewCurrentTemperatureCardDark() {
+    SmartBottleTheme {
+        CurrentTemperatureCard(
+            currentReading = TemperatureReading(
+                temperature = 27.5,
+                uvCycle = 1,
+                battery = 3.92,
+                flow = 2.3,
+                timestampEpoch = 1700000000L,
+                formattedTimestamp = "2025-10-20 17:30:00"
+            )
+        )
+    }
+}
+
+
+
