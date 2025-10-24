@@ -297,10 +297,7 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
     }
 }
 
-
-
-
-
+// CONNECTION CONTROL PANEL
 @Composable
 fun ConnectionControlPanel(
     connectionState: BleConnectionState,
@@ -764,8 +761,7 @@ fun TemperatureReadingItem(reading: TemperatureReading) {
     }
 }
 
-
-@Preview(showBackground = true)
+// COMPACT PARAMETER CHIP (List Item)
 @Composable
 fun CompactParameterChip(
     icon: ImageVector,
@@ -796,20 +792,6 @@ fun CompactParameterChip(
                 color = color
             )
         }
-    }
-}
-
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewConnectionControlPanelScanning() {
-    SmartBottleTheme {
-        ConnectionControlPanel(
-            connectionState = BleConnectionState.Scanning,
-            onScan = {},
-            onDisconnect = {},
-            onClear = {}
-        )
     }
 }
 
