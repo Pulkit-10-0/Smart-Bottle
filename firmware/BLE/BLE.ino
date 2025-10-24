@@ -16,18 +16,25 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-//  BLE CONFIG
+// BLE CONFIG
+BLEServer* pServer = nullptr; // global pointer for server
 BLECharacteristic *pCharacteristic;
 BLECharacteristic *pTimeSyncCharacteristic;
+BLECharacteristic *pAuthCharacteristic;
 bool deviceConnected = false;
+bool authorized = false;
 unsigned long syncedTime = 0;
 unsigned long lastSyncMillis = 0;
 
 #define SERVICE_UUID        "12345678-1234-1234-1234-123456789abc"
 #define CHARACTERISTIC_UUID "abcd1234-5678-1234-5678-123456789abc"
 #define TIME_SYNC_UUID      "11223344-5566-7788-99aa-bbccddeeff00"
+#define AUTH_KEY_UUID       "fedcba98-7654-3210-fedc-ba9876543210"
 
-// BLE 
+// Your private key for authorization (change to your key)
+const char expectedKey[] = "mysecretkey123";
+
+// BLE Callbacks for Time Sync
 class TimeSyncCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) override {
     std::string value = pCharacteristic->getValue();
@@ -40,20 +47,46 @@ class TimeSyncCallbacks : public BLECharacteristicCallbacks {
   }
 };
 
+// BLE Callbacks for Authorization Key
+class AuthKeyCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) override {
+    std::string value = pCharacteristic->getValue();
+    String receivedKey = String(value.c_str());
+
+    Serial.print("Received auth key: ");
+    Serial.println(receivedKey);
+
+    if (receivedKey == String(expectedKey)) {
+      authorized = true;
+      Serial.println("Authorization successful!");
+    } else {
+      authorized = false;
+      Serial.println("Authorization failed!");
+      if (pServer) {
+        pServer->disconnect(0);
+      }
+    }
+  }
+};
+
+// BLE Server Callbacks
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) override { 
     deviceConnected = true; 
+    authorized = false; // Reset authorization on new connection
     Serial.println("Client connected!");
   }
+
   void onDisconnect(BLEServer* pServer) override { 
     deviceConnected = false; 
+    authorized = false; 
     Serial.println("Client disconnected!");
     BLEDevice::startAdvertising();
     Serial.println("Advertising restarted after disconnect");
   }
 };
 
-// Time
+// Time Helpers
 unsigned long getCurrentTime() {
   if (syncedTime == 0) return 0;
   unsigned long elapsedSeconds = (millis() - lastSyncMillis) / 1000;
@@ -70,7 +103,6 @@ void formatTimestamp(char* buffer, size_t bufferSize) {
   struct tm *timeinfo = localtime(&rawtime);
   strftime(buffer, bufferSize, "%Y-%m-%d %H:%M:%S", timeinfo);
 }
-
 
 void setup() {
   Serial.begin(115200);
@@ -96,7 +128,7 @@ void setup() {
 
   // BLE INIT
   BLEDevice::init("Smart Bottle");
-  BLEServer *pServer = BLEDevice::createServer();
+  pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
   BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -105,6 +137,7 @@ void setup() {
                       CHARACTERISTIC_UUID,
                       BLECharacteristic::PROPERTY_NOTIFY
                     );
+
   pCharacteristic->addDescriptor(new BLE2902());
 
   pTimeSyncCharacteristic = pService->createCharacteristic(
@@ -112,6 +145,12 @@ void setup() {
                               BLECharacteristic::PROPERTY_WRITE
                             );
   pTimeSyncCharacteristic->setCallbacks(new TimeSyncCallbacks());
+
+  pAuthCharacteristic = pService->createCharacteristic(
+                          AUTH_KEY_UUID,
+                          BLECharacteristic::PROPERTY_WRITE
+                        );
+  pAuthCharacteristic->setCallbacks(new AuthKeyCallbacks());
 
   pService->start();
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -121,7 +160,6 @@ void setup() {
   Serial.println("Waiting for a client...");
 }
 
-// main loop
 void loop() {
   float temp = random(200, 400) / 10.0;
   int uvCycle = random(0, 2); // Example: 0 = off, 1 = on
@@ -131,7 +169,7 @@ void loop() {
   char ts[25];
   formatTimestamp(ts, sizeof(ts));
 
-  if (deviceConnected) {
+  if (deviceConnected && authorized) {
     StaticJsonDocument<256> doc;
     doc["t"] = temp;
     doc["uv"] = uvCycle;
