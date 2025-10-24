@@ -168,9 +168,7 @@ fun PermissionRequestCard(onRequestPermissions: () -> Unit) {
     }
 }
 
-// ... (Other composables: ConnectionControlPanel, DeviceSelectionList,
-//     CurrentTemperatureCard, TemperatureReadingsList, TemperatureReadingItem, etc.)
-//     remain unchanged from your existing code.
+
 
 
 
@@ -459,7 +457,7 @@ fun PreviewPermissionRequestCard() {
     }
 }
 
-// Preview for Connection Control Panel - Disconnected
+
 @Preview(showBackground = true)
 @Composable
 fun PreviewConnectionControlPanelDisconnected() {
@@ -473,7 +471,7 @@ fun PreviewConnectionControlPanelDisconnected() {
     }
 }
 
-// Preview for Connection Control Panel - Scanning
+
 @Preview(showBackground = true)
 @Composable
 fun PreviewConnectionControlPanelScanning() {
@@ -487,7 +485,7 @@ fun PreviewConnectionControlPanelScanning() {
     }
 }
 
-// Preview for Connection Control Panel - Connected
+
 @Preview(showBackground = true)
 @Composable
 fun PreviewConnectionControlPanelConnected() {
