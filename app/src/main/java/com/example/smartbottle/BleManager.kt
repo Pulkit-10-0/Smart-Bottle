@@ -137,7 +137,6 @@ class BleManager(private val context: Context) {
 
                     gatt.requestMtu(512)
                 }
-
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.d(TAG, "Disconnected from GATT server.")
                     _connectionState.value = BleConnectionState.Disconnected
@@ -194,11 +193,7 @@ class BleManager(private val context: Context) {
                     val currentTimeSeconds = System.currentTimeMillis() / 1000
                     val timeBytes = currentTimeSeconds.toString().toByteArray(Charsets.UTF_8)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        gatt.writeCharacteristic(
-                            timeCharacteristic,
-                            timeBytes,
-                            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                        )
+                        gatt.writeCharacteristic(timeCharacteristic, timeBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
                     } else {
                         @Suppress("DEPRECATION")
                         timeCharacteristic.value = timeBytes
@@ -211,11 +206,7 @@ class BleManager(private val context: Context) {
                 }
             }
         }
-
-        private fun enableNotifications(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
-        ) {
+        private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             try {
                 gatt.setCharacteristicNotification(characteristic, true)
                 val descriptor = characteristic.getDescriptor(
@@ -223,10 +214,7 @@ class BleManager(private val context: Context) {
                 )
                 if (descriptor != null) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        gatt.writeDescriptor(
-                            descriptor,
-                            BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                        )
+                        gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                     } else {
                         @Suppress("DEPRECATION")
                         descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -265,16 +253,12 @@ class BleManager(private val context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 @Suppress("DEPRECATION")
                 val value = characteristic.value
-                Log.d(
-                    TAG,
-                    "onCharacteristicChanged (legacy) called. Raw: ${value?.contentToString()}"
-                )
+                Log.d(TAG, "onCharacteristicChanged (legacy) called. Raw: ${value?.contentToString()}")
                 if (value != null) handleIncomingData(value)
             }
         }
 
         private val buffer = StringBuilder()
-
         @RequiresApi(Build.VERSION_CODES.O)
         private fun handleIncomingData(value: ByteArray) {
             val chunk = String(value, Charsets.UTF_8)
@@ -290,22 +274,12 @@ class BleManager(private val context: Context) {
                 try {
                     val jsonObject = JSONObject(jsonStr)
                     val temperature = jsonObject.getDouble("t")
-                    val uvCycle = jsonObject.optInt("uv", 0)
-                    val battery = jsonObject.optDouble("bat", 0.0)
-                    val flow = jsonObject.optDouble("flow", 0.0)
                     val timestampStr = jsonObject.getString("ts")
 
                     val epochSeconds = DateTimeUtils.parseToEpochSeconds(timestampStr)
                     val formattedTimestamp = DateTimeUtils.epochToDisplay(epochSeconds)
 
-                    val reading = TemperatureReading(
-                        temperature = temperature,
-                        uvCycle = uvCycle,
-                        battery = battery,
-                        flow = flow,
-                        timestampEpoch = epochSeconds,
-                        formattedTimestamp = formattedTimestamp
-                    )
+                    val reading = TemperatureReading(temperature, epochSeconds, formattedTimestamp)
                     _currentReading.value = reading
 
                     val currentList = _temperatureReadings.value.toMutableList()
@@ -324,7 +298,7 @@ class BleManager(private val context: Context) {
         }
     }
 
-        @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun startScan() {
         if (!hasRequiredPermissions()) {
             _connectionState.value = BleConnectionState.Error("Missing Bluetooth permissions")
